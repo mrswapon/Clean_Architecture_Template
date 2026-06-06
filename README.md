@@ -1,24 +1,6 @@
-﻿# Farm Manager (Muchak Manager App)
+# Clean Architecture Template
 
-Flutter mobile client for the **Farm Unit Management System** — manage farm units, daily checklist entries (including hive inspections), users, and configurable fields. Pairs with the Laravel API in the [mouchak_manager](https://github.com/your-org/mouchak_manager) backend repository.
-
----
-
-## Table of Contents
-
-- [Features](#features)
-- [Tech Stack](#tech-stack)
-- [Requirements](#requirements)
-- [Project Structure](#project-structure)
-- [Installation](#installation)
-- [Running the App](#running-the-app)
-- [API Base URL](#api-base-url)
-- [Backend Setup](#backend-setup)
-- [User Roles](#user-roles)
-- [Localization](#localization)
-- [Building a Release APK](#building-a-release-apk)
-- [Testing](#testing)
-- [Default Login (Development)](#default-login-development)
+A production-ready **Flutter project template** built with Clean Architecture and Cubit state management. Clone this repo as the starting point for any new Flutter project — auth, profile, routing, theming, DI, and networking are all wired up and ready to go.
 
 ---
 
@@ -27,40 +9,63 @@ Flutter mobile client for the **Farm Unit Management System** — manage farm un
 | Area | Description |
 |------|-------------|
 | **Authentication** | Email/password login, secure token storage, session restore on launch |
-| **Role-based dashboards** | Separate home screens for super admin, admin, and field users |
-| **Farm units** | List, create, edit, and view units; QR scan to open a unit quickly |
-| **Checklist entries** | Per-unit entries with status, date/time, photos, comments, hive inspection fields, and admin-defined custom fields |
-| **User management** | Admins create/edit users and freeze accounts |
-| **Field configs** | Admins define and reorder checklist field definitions |
-| **Frozen account handling** | Frozen users see a dedicated screen and cannot perform writes |
-| **Localization** | English and Bangla (বাংলা), toggle in-app |
+| **Profile** | View and edit the authenticated user's profile |
+| **Auth guards** | GoRouter redirect logic — unauthenticated users are redirected to login automatically |
+| **Localization** | English and Bangla (বাংলা), switchable in-app, persisted across sessions |
+| **Theming** | Material 3 theme with a centralized color palette and text styles |
+| **Responsive layout** | `flutter_screenutil` configured with a 390×844 design base |
 
 ---
 
 ## Tech Stack
 
-| Layer | Technology | Purpose |
-|-------|------------|---------|
-| Framework | Flutter 3.x | Cross-platform UI |
-| State | `flutter_bloc` | Feature BLoCs |
-| DI | `get_it` | Service locator |
-| Networking | `dio` | REST API client |
-| Routing | `go_router` | Declarative navigation + auth redirects |
-| Storage | `flutter_secure_storage` | Auth token |
-| QR | `mobile_scanner`, `qr_flutter` | Scan and display unit QR codes |
-| Images | `image_picker`, `cached_network_image` | Entry photos and avatars |
-| i18n | `flutter gen-l10n` | EN / BN strings |
-
-Architecture follows **clean architecture** per feature: `data` → `domain` → `presentation`, with shared code under `lib/core/`.
+| Layer | Package | Purpose |
+|-------|---------|---------|
+| State management | `flutter_bloc` (Cubit) | `AuthCubit`, `ProfileCubit`, `LocaleCubit` |
+| Dependency injection | `get_it` | Service locator, registered in `injection_container.dart` |
+| Networking | `dio` + `pretty_dio_logger` | REST API client with auth token interceptor |
+| Routing | `go_router` | Declarative navigation with auth redirect guards |
+| Secure storage | `flutter_secure_storage` | Auth token persistence |
+| Functional programming | `dartz` | `Either<Failure, T>` result types in use cases |
+| Value equality | `equatable` | State and entity comparison |
+| i18n | `flutter gen-l10n` | ARB-based EN / BN string generation |
+| UI helpers | `flutter_screenutil`, `shimmer` | Responsive sizing and loading skeletons |
 
 ---
 
-## Requirements
+## Architecture
 
-- [Flutter SDK](https://docs.flutter.dev/get-started/install) **3.10+** (Dart `^3.10.4`)
-- Android Studio / VS Code with Flutter extension
-- Android device or emulator (primary target)
-- Running **Farm Manager API** (see [Backend Setup](#backend-setup))
+Follows **Clean Architecture** per feature with three layers:
+
+```
+feature/
+├── data/
+│   ├── datasources/       # Remote API calls (Dio)
+│   ├── models/            # JSON serialization, extends entities
+│   └── repositories/      # Implements domain repository contracts
+├── domain/
+│   ├── entities/          # Plain Dart objects, no framework dependencies
+│   ├── repositories/      # Abstract contracts
+│   └── usecases/          # Single-responsibility business logic
+└── presentation/
+    ├── cubit/             # Cubit + State
+    └── screens/           # Flutter UI
+```
+
+Shared infrastructure lives under `lib/core/`:
+
+```
+core/
+├── constants/     # API endpoints, timeouts
+├── di/            # GetIt registrations
+├── errors/        # Failure types, exception mapping
+├── l10n/          # LocaleCubit, AppStrings, extension helpers
+├── network/       # ApiClient (Dio wrapper + auth interceptor)
+├── router/        # AppRouter, AppRoutes, AuthRouterRefresh
+├── storage/       # SecureStorage wrapper
+├── theme/         # AppTheme, AppColors, text styles
+└── widgets/       # AppButton, AppTextField, LoadingWidget, etc.
+```
 
 ---
 
@@ -68,37 +73,29 @@ Architecture follows **clean architecture** per feature: `data` → `domain` →
 
 ```
 lib/
-├── core/
-│   ├── constants/       # API paths, base URL
-│   ├── di/              # GetIt registration
-│   ├── errors/          # Failures, API error parsing
-│   ├── l10n/            # Locale cubit, string helpers
-│   ├── network/         # Dio client, interceptors
-│   ├── router/          # GoRouter routes and auth guards
-│   ├── theme/           # App theme
-│   └── widgets/         # Shared UI components
+├── core/                  # Shared infrastructure (see above)
 ├── features/
-│   ├── auth/
-│   ├── dashboard/
-│   ├── unit/
-│   ├── checklist/
-│   ├── user/
-│   └── checklist_config/
-├── l10n/                # ARB files (en, bn)
+│   ├── auth/              # Login, logout, session check
+│   │   ├── data/
+│   │   ├── domain/
+│   │   └── presentation/
+│   │       ├── cubit/     # AuthCubit, AuthState
+│   │       └── screens/   # LoginScreen, SplashScreen
+│   └── profile/           # View and edit user profile
+│       ├── data/
+│       ├── domain/
+│       └── presentation/
+│           ├── cubit/     # ProfileCubit, ProfileState
+│           └── screens/   # HomeScreen, ProfileScreen
+├── l10n/                  # app_en.arb, app_bn.arb
 └── main.dart
-
-assets/
-├── images/
-└── icons/
-
-run_dev.ps1              # USB + localhost API
-run_lan.ps1              # Same WiFi LAN API
-build_client_apk.ps1     # Release APK with public IP API URL
 ```
 
 ---
 
-## Installation
+## Getting Started
+
+### 1. Clone and install dependencies
 
 ```bash
 git clone <your-repo-url> clean_architecture_template
@@ -106,152 +103,101 @@ cd clean_architecture_template
 flutter pub get
 ```
 
-Generate localization classes (also runs automatically on `flutter run` when `generate: true` in `pubspec.yaml`):
+### 2. Configure the API base URL
+
+Open `lib/core/constants/api_constants.dart` and set your backend URL:
+
+```dart
+static const baseUrl = String.fromEnvironment(
+  'BASE_URL',
+  defaultValue: 'https://api.example.com/api/v1',
+);
+```
+
+Or pass it at runtime:
+
+```bash
+flutter run --dart-define=BASE_URL=https://api.example.com/api/v1
+```
+
+### 3. Generate localization files
 
 ```bash
 flutter gen-l10n
 ```
 
----
+This runs automatically on `flutter run` because `generate: true` is set in `pubspec.yaml`.
 
-## Running the App
-
-### 1. Start the backend API
-
-From the **mouchak_manager** repo:
+### 4. Run the app
 
 ```bash
-cd backend
-composer install
-cp .env.example .env
-php artisan key:generate
-php artisan migrate --seed
-php artisan storage:link
-```
-
-For local development on all interfaces:
-
-```powershell
-cd backend
-.\serve-dev.ps1
-```
-
-API base (local): `http://127.0.0.1:8000/api/v1`
-
-Full API docs: [mouchak_manager/backend/README.md](https://github.com/your-org/mouchak_manager/blob/main/backend/README.md)
-
-### 2. Run the Flutter app
-
-**Option A — USB device + localhost (recommended for dev)**
-
-Forwards port 8000 from the phone to your PC, then runs the app:
-
-```powershell
-.\run_dev.ps1
-```
-
-**Option B — Same WiFi (no USB)**
-
-Update the IP in `run_lan.ps1` to your PC’s LAN address, then:
-
-```powershell
-.\run_lan.ps1
-```
-
-**Option C — Manual**
-
-```bash
-flutter run --dart-define=BASE_URL=http://127.0.0.1:8000/api/v1
+flutter run
 ```
 
 ---
 
-## API Base URL
+## Adding a New Feature
 
-The API root is set at **compile time** via `--dart-define=BASE_URL=...`.
-
-Default when no define is passed (see `lib/core/constants/api_constants.dart`):
+Each feature follows the same pattern. To scaffold a new feature called `orders`:
 
 ```
-https://makaapp.makafoodbd.com/api/v1
+lib/features/orders/
+├── data/
+│   ├── datasources/order_remote_datasource.dart
+│   ├── models/order_model.dart
+│   └── repositories/order_repository_impl.dart
+├── domain/
+│   ├── entities/order_entity.dart
+│   ├── repositories/order_repository.dart
+│   └── usecases/get_orders_usecase.dart
+└── presentation/
+    ├── cubit/order_cubit.dart
+    ├── cubit/order_state.dart
+    └── screens/order_list_screen.dart
 ```
 
-| Scenario | Example `BASE_URL` |
-|----------|-------------------|
-| USB + `adb reverse` | `http://127.0.0.1:8000/api/v1` |
-| Same WiFi | `http://<PC_LAN_IP>:8000/api/v1` |
-| Production | `https://makaapp.makafoodbd.com/api/v1` |
-| Client APK (public IP) | Set by `build_client_apk.ps1` |
+Then register in `lib/core/di/injection_container.dart` and add routes in `lib/core/router/app_router.dart`.
 
 ---
 
-## Backend Setup
+## Auth Flow
 
-This app does **not** include the API. Clone and run the backend separately:
+```
+SplashScreen
+  └── AuthCubit.checkAuth()
+        ├── success → HomeScreen
+        └── failure → LoginScreen
+              └── AuthCubit.login(email, password)
+                    ├── success → HomeScreen
+                    └── failure → show error snackbar
+```
 
-| Item | Location |
-|------|----------|
-| API repository | `C:\Users\mdnur\StudioProjects\mouchak_manager` (or your clone path) |
-| API version prefix | `/api/v1` |
-| Auth | Laravel Sanctum bearer token (stored securely on device) |
-
-If `run_dev.ps1` cannot find `mouchak_manager\backend\connect-device.ps1`, it falls back to `adb reverse tcp:8000 tcp:8000`.
+The `AuthRouterRefresh` notifier wires `AuthCubit` to `GoRouter` so that logout automatically redirects to the login screen.
 
 ---
 
-## User Roles
+## Cubit Reference
 
-| Role | App experience |
-|------|----------------|
-| `super_admin` | Super admin dashboard; full system access |
-| `admin` | Admin dashboard; manage units, users, configs, and entries |
-| `user` | Field dashboard; units and checklist entries for assigned work |
-| Frozen | Any role with `is_frozen` → frozen screen, no writes |
-
-Route guards and home redirects are implemented in `lib/core/router/app_router.dart`.
+| Cubit | Location | Methods |
+|-------|----------|---------|
+| `AuthCubit` | `auth/presentation/cubit/` | `login()`, `logout()`, `checkAuth()` |
+| `ProfileCubit` | `profile/presentation/cubit/` | `load()`, `update()` |
+| `LocaleCubit` | `core/l10n/` | `toggle()`, `setLocale()`, `load()` |
 
 ---
 
 ## Localization
 
-- **English** (`en`) — default template: `lib/l10n/app_en.arb`
-- **Bangla** (`bn`) — `lib/l10n/app_bn.arb`
+- **English** — `lib/l10n/app_en.arb` (default)
+- **Bangla** — `lib/l10n/app_bn.arb`
 
-Users can switch language in the app. Locale preference is persisted via `LocaleCubit`.
-
-To add or change strings, edit the ARB files and run:
+To add or update strings, edit the ARB files and run:
 
 ```bash
 flutter gen-l10n
 ```
 
----
-
-## Building a Release APK
-
-Builds a release APK with your machine’s **public IP** embedded as `BASE_URL` (for remote clients on the internet):
-
-```powershell
-.\build_client_apk.ps1
-```
-
-**Requirements before distributing:**
-
-1. Backend running and reachable on port `8000`
-2. Router port forwarding and firewall rules configured if needed
-3. Release signing configured in `android/app/build.gradle.kts` (currently uses debug signing for convenience)
-
-Output path:
-
-```
-build/app/outputs/flutter-apk/app-release.apk
-```
-
-Custom URL without the script:
-
-```bash
-flutter build apk --release --dart-define=BASE_URL=https://your-domain.com/api/v1
-```
+The `LanguageToggle` widget in the app bar lets users switch language at runtime.
 
 ---
 
@@ -261,33 +207,18 @@ flutter build apk --release --dart-define=BASE_URL=https://your-domain.com/api/v
 flutter test
 ```
 
-Widget and BLoC tests use `flutter_test`, `bloc_test`, and `mocktail` (see `dev_dependencies` in `pubspec.yaml`).
+Dev dependencies include `flutter_test`, `bloc_test`, and `mocktail`.
 
 ---
 
-## Default Login (Development)
+## Requirements
 
-After seeding the backend database:
-
-| Field | Value |
-|-------|--------|
-| Email | `admin@farmmanager.com` |
-| Password | `Admin@123` |
-| Role | `admin` |
-
-Change these credentials before any production deployment.
-
----
-
-## Related Repositories
-
-| Project | Description |
-|---------|-------------|
-| **clean_architecture_template** (this repo) | Flutter Android/iOS client |
-| **mouchak_manager** | Laravel 11 REST API + MySQL |
+- Flutter SDK **3.35+** (Dart `>=3.4.0`)
+- Android Studio or VS Code with the Flutter extension
+- Android / iOS device or emulator
 
 ---
 
 ## License
 
-Private / internal use unless otherwise specified by the project owner.
+MIT — free to use as a starting point for any project.
